@@ -52,7 +52,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: auto-${{ github.run_number }}
-          release_name: "Auto Release ${{ github.run_number }}"
           files: output/luci-app-nikki*.ipk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
