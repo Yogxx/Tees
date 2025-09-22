@@ -1,10 +1,10 @@
-name: Build & Releases
+name: Build & Auto-Releases
 
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "v1.24.2"
+    branches:
+      - main  # Bisa juga ganti branch sesuai kebutuhan
 
 jobs:
   build:
@@ -40,16 +40,20 @@ jobs:
           make defconfig
           make package/luci-app-nikki/compile V=s
 
-      - name: Collect .ipk files
+      - name: Collect luci-app-nikki .ipk files
         run: |
           mkdir -p output
-          find openwrt-sdk/bin/packages/ -name "*.ipk" -exec cp {} output/ \;
+          find openwrt-sdk/bin/packages/ -name "luci-app-nikki*.ipk" -exec cp {} output/ \;
+          find openwrt-sdk/bin/targets/ -name "luci-app-nikki*.ipk" -exec cp {} output/ \;
+          echo "=== Files collected for release ==="
           ls -lh output/
 
-      - name: Create Release
+      - name: Create Auto Release
         uses: softprops/action-gh-release@v2
         with:
-          files: output/*.ipk
+          tag_name: auto-${{ github.run_number }}
+          release_name: "Auto Release ${{ github.run_number }}"
+          files: output/luci-app-nikki*.ipk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
