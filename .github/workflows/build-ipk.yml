@@ -26,8 +26,8 @@ jobs:
           export TARGET=aarch64_generic
           export SUBTARGET=armsr
 
-          wget https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${TARGET}/${SUBTARGET}/openwrt-sdk-${OPENWRT_VERSION}-${TARGET}-${SUBTARGET}_gcc-12.3.0_musl.Linux-x86_64.tar.xz
-          tar -xJf openwrt-sdk-*.tar.xz
+          wget https://downloads.openwrt.org/releases/${OPENWRT_VERSION}/targets/${TARGET}/${SUBTARGET}/openwrt-sdk-${OPENWRT_VERSION}-${TARGET}-${SUBTARGET}_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+          tar -I zstd -xf openwrt-sdk-*.tar.zst
           mv openwrt-sdk-* openwrt-sdk
 
       - name: Add custom feed & update
