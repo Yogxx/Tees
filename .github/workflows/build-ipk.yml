@@ -1,4 +1,4 @@
-name: Build & Release
+name: Build & Releases
 
 on:
   workflow_dispatch:
@@ -24,7 +24,8 @@ jobs:
         run: |
           wget https://mirror-03.infra.openwrt.org/releases/24.10.2/targets/armsr/armv8/openwrt-sdk-24.10.2-armsr-armv8_gcc-13.3.0_musl.Linux-x86_64.tar.zst
           tar -I zstd -xf openwrt-sdk-*.tar.zst
-          mv openwrt-sdk-* openwrt-sdk
+          SDK_DIR=$(tar -I zstd -tf openwrt-sdk-*.tar.zst | head -1 | cut -f1 -d"/")
+          mv "$SDK_DIR" openwrt-sdk
 
       - name: Add custom feed & update
         run: |
