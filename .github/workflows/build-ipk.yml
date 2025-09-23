@@ -1,12 +1,11 @@
-name: Download & Extract OpenWrt RootFS
+name: Extract OpenWrt RootFS
 
 on:
   workflow_dispatch:
     inputs:
       firmware_url:
-        description: 'URL firmware OpenWrt (.img, .tar.gz, .tar.xz)'
+        description: 'URL firmware OpenWrt (MediaFire, Google Drive, Mega, Terabox, atau direct link)'
         required: true
-        default: ''
 
 jobs:
   extract-rootfs:
@@ -27,51 +26,50 @@ jobs:
       run: |
         URL="${{ github.event.inputs.firmware_url }}"
         echo "Downloading firmware from $URL"
-
+        
+        FILENAME="firmware"
         if [[ "$URL" == *"drive.google.com"* ]]; then
-          gdown "$URL" -O firmware
+          gdown "$URL" -O $FILENAME
         elif [[ "$URL" == *"mega.nz"* ]]; then
-          megadl "$URL" --path ./firmware
+          megadl "$URL" --path ./$FILENAME
         elif [[ "$URL" == *"mediafire.com"* ]]; then
-          wget -O firmware "$URL"
+          wget -O $FILENAME "$URL"
         elif [[ "$URL" == *"terabox.com"* ]]; then
-          aria2c -o firmware "$URL"
+          aria2c -o $FILENAME "$URL"
         else
-          wget -O firmware "$URL"
+          wget -O $FILENAME "$URL"
         fi
 
-    - name: Detect firmware type
+    - name: Detect and decompress firmware if compressed
       run: |
-        EXT="${URL##*.}"
-        echo "Extension: $EXT"
+        EXT="${FILENAME##*.}"
         if [[ "$EXT" == "gz" ]]; then
-          echo "tar.gz" > type.txt
+          echo "gzip detected, decompressing..."
+          mv $FILENAME firmware.gz
+          gunzip -c firmware.gz > firmware
         elif [[ "$EXT" == "xz" ]]; then
-          echo "tar.xz" > type.txt
-        elif [[ "$EXT" == "img" ]]; then
-          echo "img" > type.txt
-        else
-          echo "unknown" > type.txt
+          echo "xz detected, decompressing..."
+          mv $FILENAME firmware.xz
+          unxz -c firmware.xz > firmware
         fi
 
-    - name: Extract firmware
+    - name: Extract rootfs
       run: |
-        TYPE=$(cat type.txt)
-        mkdir rootfs
-        if [ "$TYPE" == "tar.gz" ]; then
-          tar -xzf firmware -C rootfs
-        elif [ "$TYPE" == "tar.xz" ]; then
-          tar -xJf firmware -C rootfs
-        elif [ "$TYPE" == "img" ]; then
+        if file firmware | grep -q 'Squashfs'; then
+          echo "SquashFS detected"
           binwalk -e firmware
-          if [ -f "_firmware.extracted/squashfs-root.squashfs" ]; then
-            unsquashfs -d rootfs _firmware.extracted/squashfs-root.squashfs
-          else
-            echo "No squashfs found, check firmware format!"
-            exit 1
-          fi
+          unsquashfs -d rootfs _firmware.extracted/squashfs-root.squashfs
+        elif file firmware | grep -q 'UBI'; then
+          echo "UBI detected"
+          binwalk -e firmware
+          # Jika UBI, gunakan ubi_reader atau sesuai kebutuhan
+          echo "UBI extraction not implemented, file will be in _firmware.extracted"
+        elif file firmware | grep -q 'tar archive'; then
+          echo "tar archive detected"
+          mkdir rootfs
+          tar -xf firmware -C rootfs
         else
-          echo "Unsupported firmware format"
+          echo "Unknown firmware type!"
           exit 1
         fi
 
