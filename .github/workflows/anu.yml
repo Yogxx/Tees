@@ -25,7 +25,7 @@ jobs:
       run: |
         URL="${{ github.event.inputs.firmware_url }}"
         echo "Downloading firmware from $URL"
-        
+
         FILENAME="firmware"
         if [[ "$URL" == *"drive.google.com"* ]]; then
           gdown "$URL" -O $FILENAME
@@ -37,37 +37,48 @@ jobs:
           wget -O $FILENAME "$URL"
         fi
 
-    - name: Decompress firmware if compressed
+    - name: Decompress firmware if needed
       run: |
         EXT="${FILENAME##*.}"
-        echo "File extension: $EXT"
         if [[ "$EXT" == "gz" ]]; then
-          mv $FILENAME firmware.gz
-          gunzip -c firmware.gz > firmware
+          gunzip -c "$FILENAME" > firmware
         elif [[ "$EXT" == "xz" ]]; then
-          mv $FILENAME firmware.xz
-          unxz -c firmware.xz > firmware
+          unxz -c "$FILENAME" > firmware
+        else
+          cp "$FILENAME" firmware
         fi
+        echo "Decompressed firmware:"
+        file firmware
 
     - name: Extract rootfs
       run: |
-        if file firmware | grep -q 'Squashfs'; then
-          echo "SquashFS detected"
-          binwalk -e firmware
-          unsquashfs -d rootfs _firmware.extracted/squashfs-root.squashfs
-        elif file firmware | grep -q 'UBI'; then
-          echo "UBI detected"
-          binwalk -e firmware
-          mkdir rootfs
-          cp -r _firmware.extracted/* rootfs/  # UBI extraction placeholder
-          echo "UBI extraction done (manual processing may be needed)"
-        elif file firmware | grep -q 'tar archive'; then
-          echo "tar archive detected"
-          mkdir rootfs
-          tar -xf firmware -C rootfs
+        mkdir -p rootfs
+        binwalk -e firmware
+        echo "Checking extracted folders:"
+        ls -la _firmware.extracted || true
+
+        # Try SquashFS first
+        SQUASHFS_PATH=$(find _firmware.extracted -type d -name 'squashfs-root' | head -n1)
+        if [ -d "$SQUASHFS_PATH" ]; then
+          echo "SquashFS detected at $SQUASHFS_PATH"
+          unsquashfs -d rootfs "$SQUASHFS_PATH"
         else
-          echo "Unknown firmware type!"
-          exit 1
+          # Check for UBI
+          UBI_IMG=$(find _firmware.extracted -type f -name '*.ubi' | head -n1)
+          if [ -f "$UBI_IMG" ]; then
+            echo "UBI image detected: $UBI_IMG"
+            cp -r _firmware.extracted/* rootfs/
+            echo "UBI extraction done (manual processing may be needed)"
+          else
+            # Check for tar archive
+            if file firmware | grep -q 'tar archive'; then
+              echo "Tar archive detected"
+              tar -xf firmware -C rootfs
+            else
+              echo "Unknown firmware type!"
+              exit 1
+            fi
+          fi
         fi
 
     - name: Compress rootfs
