@@ -18,9 +18,13 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y binwalk squashfs-tools wget curl p7zip-full aria2 xz-utils npm
-        sudo npm install -g megatools
+        sudo apt-get install -y binwalk squashfs-tools wget curl p7zip-full aria2 xz-utils unzip lsb-release
         sudo apt-get install -y gdown
+        # Install MegaCMD untuk Mega.nz
+        sudo apt-get install -y software-properties-common
+        sudo add-apt-repository -y ppa:meganz/ppa
+        sudo apt-get update
+        sudo apt-get install -y megacmd
 
     - name: Download firmware
       run: |
@@ -31,7 +35,7 @@ jobs:
         if [[ "$URL" == *"drive.google.com"* ]]; then
           gdown "$URL" -O $FILENAME
         elif [[ "$URL" == *"mega.nz"* ]]; then
-          megadl "$URL" --path ./$FILENAME
+          megadl "$URL" --path ./firmware
         elif [[ "$URL" == *"mediafire.com"* ]]; then
           wget -O $FILENAME "$URL"
         elif [[ "$URL" == *"terabox.com"* ]]; then
@@ -40,15 +44,14 @@ jobs:
           wget -O $FILENAME "$URL"
         fi
 
-    - name: Detect and decompress firmware if compressed
+    - name: Decompress firmware if compressed
       run: |
         EXT="${FILENAME##*.}"
+        echo "File extension: $EXT"
         if [[ "$EXT" == "gz" ]]; then
-          echo "gzip detected, decompressing..."
           mv $FILENAME firmware.gz
           gunzip -c firmware.gz > firmware
         elif [[ "$EXT" == "xz" ]]; then
-          echo "xz detected, decompressing..."
           mv $FILENAME firmware.xz
           unxz -c firmware.xz > firmware
         fi
@@ -62,8 +65,9 @@ jobs:
         elif file firmware | grep -q 'UBI'; then
           echo "UBI detected"
           binwalk -e firmware
-          # Jika UBI, gunakan ubi_reader atau sesuai kebutuhan
-          echo "UBI extraction not implemented, file will be in _firmware.extracted"
+          mkdir rootfs
+          cp -r _firmware.extracted/* rootfs/  # UBI extraction placeholder
+          echo "UBI extraction done (manual processing may be needed)"
         elif file firmware | grep -q 'tar archive'; then
           echo "tar archive detected"
           mkdir rootfs
