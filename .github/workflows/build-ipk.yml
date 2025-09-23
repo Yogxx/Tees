@@ -1,58 +1,40 @@
-name: Build & Auto-Releases
+name: Extract OpenWrt RootFS
 
 on:
-  workflow_dispatch:
-  push:
-    branches:
-      - main  # Bisa juga ganti branch sesuai kebutuhan
+  workflow_dispatch:  # bisa dijalankan manual
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04
+  extract-rootfs:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+    - name: Checkout repo
+      uses: actions/checkout@v3
 
-      - name: Setup build environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential git wget unzip python3 python3-pip \
-            libncurses5-dev zlib1g-dev gawk gettext libssl-dev xsltproc rsync file zstd
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y binwalk squashfs-tools
 
-      - name: Download OpenWrt SDK
-        run: |
-          wget https://mirror-03.infra.openwrt.org/releases/24.10.2/targets/armsr/armv8/openwrt-sdk-24.10.2-armsr-armv8_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-          tar -I zstd -xf openwrt-sdk-*.tar.zst
-          SDK_DIR=$(tar -I zstd -tf openwrt-sdk-*.tar.zst | head -1 | cut -f1 -d"/")
-          mv "$SDK_DIR" openwrt-sdk
+    - name: Download firmware (jika perlu)
+      run: |
+        wget -O openwrt-firmware.img "https://www.mediafire.com/file/3lkzc3hu3sshg5z/OpenWrt_s905x_23.05.4_Clash-Wall-B860H-V1-18.07.2024_wifi_on.img.xz/file"
 
-      - name: Add custom feed & update
-        run: |
-          cd openwrt-sdk
-          echo "src-git nikki https://github.com/nikkinikki-org/OpenWrt-nikki.git;main" >> feeds.conf.default
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+    - name: Extract firmware with binwalk
+      run: |
+        binwalk -e openwrt-firmware.img
 
-      - name: Compile luci-app-nikki
-        run: |
-          cd openwrt-sdk
-          make defconfig
-          make package/luci-app-nikki/compile V=s
+    - name: Extract SquashFS rootfs
+      run: |
+        unsquashfs -d rootfs _openwrt-firmware.img.extracted/squashfs-root.squashfs
 
-      - name: Collect luci-app-nikki .ipk files
-        run: |
-          mkdir -p output
-          find openwrt-sdk/bin/packages/ -name "luci-app-nikki*.ipk" -exec cp {} output/ \;
-          find openwrt-sdk/bin/targets/ -name "luci-app-nikki*.ipk" -exec cp {} output/ \;
-          echo "=== Files collected for release ==="
-          ls -lh output/
-
-      - name: Create Auto Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: auto-${{ github.run_number }}
-          files: output/luci-app-nikki*.ipk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+    - name: Archive rootfs
+      run: |
+        tar -czvf rootfs.tar.gz -C rootfs .
+    
+    - name: Upload rootfs artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: rootfs
+        path: rootfs.tar.gz
+        
