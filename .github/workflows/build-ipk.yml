@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       firmware_url:
-        description: 'URL firmware OpenWrt (MediaFire, Google Drive, Mega, Terabox, atau direct link)'
+        description: 'URL firmware OpenWrt (MediaFire, Google Drive, Terabox, atau direct link)'
         required: true
 
 jobs:
@@ -18,13 +18,8 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y binwalk squashfs-tools wget curl p7zip-full aria2 xz-utils unzip lsb-release python3-pip software-properties-common
+        sudo apt-get install -y binwalk squashfs-tools wget curl p7zip-full aria2 xz-utils unzip python3-pip
         pip3 install --upgrade gdown
-
-    - name: Install MegaCMD from .deb
-      run: |
-        wget https://mega.nz/linux/MEGAsync/xUbuntu_22.04/amd64/megacmd-xUbuntu_22.04_amd64.deb
-        sudo dpkg -i megacmd-xUbuntu_22.04_amd64.deb || sudo apt-get install -f -y
 
     - name: Download firmware
       run: |
@@ -34,8 +29,6 @@ jobs:
         FILENAME="firmware"
         if [[ "$URL" == *"drive.google.com"* ]]; then
           gdown "$URL" -O $FILENAME
-        elif [[ "$URL" == *"mega.nz"* ]]; then
-          megadl "$URL" --path ./firmware
         elif [[ "$URL" == *"mediafire.com"* ]]; then
           wget -O $FILENAME "$URL"
         elif [[ "$URL" == *"terabox.com"* ]]; then
