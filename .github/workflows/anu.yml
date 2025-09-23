@@ -27,6 +27,12 @@ jobs:
         echo "Downloading firmware from $URL"
 
         FILENAME="firmware"
+
+        if [[ -z "$URL" ]]; then
+          echo "Error: firmware_url input is empty!"
+          exit 1
+        fi
+
         if [[ "$URL" == *"drive.google.com"* ]]; then
           gdown "$URL" -O $FILENAME
         elif [[ "$URL" == *"mediafire.com"* ]]; then
@@ -37,16 +43,27 @@ jobs:
           wget -O $FILENAME "$URL"
         fi
 
+        if [ ! -f "$FILENAME" ]; then
+          echo "Firmware file not found! Download may have failed."
+          exit 1
+        fi
+
+        echo "Downloaded file:"
+        ls -la
+
     - name: Decompress firmware if needed
       run: |
         EXT="${FILENAME##*.}"
+        echo "File extension: $EXT"
+
         if [[ "$EXT" == "gz" ]]; then
-          gunzip -c "$FILENAME" > firmware
+            gunzip -c "$FILENAME" > firmware
         elif [[ "$EXT" == "xz" ]]; then
-          unxz -c "$FILENAME" > firmware
+            unxz -c "$FILENAME" > firmware
         else
-          cp "$FILENAME" firmware
+            cp "$FILENAME" firmware
         fi
+
         echo "Decompressed firmware:"
         file firmware
 
