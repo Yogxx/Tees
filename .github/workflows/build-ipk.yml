@@ -1,7 +1,12 @@
-name: Extract OpenWrt RootFS
+name: Download & Extract OpenWrt RootFS
 
 on:
-  workflow_dispatch:  # bisa dijalankan manual
+  workflow_dispatch:
+    inputs:
+      firmware_url:
+        description: 'URL firmware OpenWrt (.img, .tar.gz, .tar.xz)'
+        required: true
+        default: ''
 
 jobs:
   extract-rootfs:
@@ -14,24 +19,66 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y binwalk squashfs-tools
+        sudo apt-get install -y binwalk squashfs-tools wget curl p7zip-full aria2 xz-utils npm
+        sudo npm install -g megatools
+        sudo apt-get install -y gdown
 
-    - name: Download firmware (jika perlu)
+    - name: Download firmware
       run: |
-        wget -O openwrt-firmware.img "https://www.mediafire.com/file/3lkzc3hu3sshg5z/OpenWrt_s905x_23.05.4_Clash-Wall-B860H-V1-18.07.2024_wifi_on.img.xz/file"
+        URL="${{ github.event.inputs.firmware_url }}"
+        echo "Downloading firmware from $URL"
 
-    - name: Extract firmware with binwalk
+        if [[ "$URL" == *"drive.google.com"* ]]; then
+          gdown "$URL" -O firmware
+        elif [[ "$URL" == *"mega.nz"* ]]; then
+          megadl "$URL" --path ./firmware
+        elif [[ "$URL" == *"mediafire.com"* ]]; then
+          wget -O firmware "$URL"
+        elif [[ "$URL" == *"terabox.com"* ]]; then
+          aria2c -o firmware "$URL"
+        else
+          wget -O firmware "$URL"
+        fi
+
+    - name: Detect firmware type
       run: |
-        binwalk -e openwrt-firmware.img
+        EXT="${URL##*.}"
+        echo "Extension: $EXT"
+        if [[ "$EXT" == "gz" ]]; then
+          echo "tar.gz" > type.txt
+        elif [[ "$EXT" == "xz" ]]; then
+          echo "tar.xz" > type.txt
+        elif [[ "$EXT" == "img" ]]; then
+          echo "img" > type.txt
+        else
+          echo "unknown" > type.txt
+        fi
 
-    - name: Extract SquashFS rootfs
+    - name: Extract firmware
       run: |
-        unsquashfs -d rootfs _openwrt-firmware.img.extracted/squashfs-root.squashfs
+        TYPE=$(cat type.txt)
+        mkdir rootfs
+        if [ "$TYPE" == "tar.gz" ]; then
+          tar -xzf firmware -C rootfs
+        elif [ "$TYPE" == "tar.xz" ]; then
+          tar -xJf firmware -C rootfs
+        elif [ "$TYPE" == "img" ]; then
+          binwalk -e firmware
+          if [ -f "_firmware.extracted/squashfs-root.squashfs" ]; then
+            unsquashfs -d rootfs _firmware.extracted/squashfs-root.squashfs
+          else
+            echo "No squashfs found, check firmware format!"
+            exit 1
+          fi
+        else
+          echo "Unsupported firmware format"
+          exit 1
+        fi
 
-    - name: Archive rootfs
+    - name: Compress rootfs
       run: |
         tar -czvf rootfs.tar.gz -C rootfs .
-    
+
     - name: Upload rootfs artifact
       uses: actions/upload-artifact@v4
       with:
